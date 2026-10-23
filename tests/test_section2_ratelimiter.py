@@ -1,6 +1,7 @@
 """Unit tests for the Redis sliding-window limiter (no Celery involved)."""
 import threading
 import time
+from unittest import mock
 
 import redis
 
@@ -49,7 +50,11 @@ def test_atomic_under_concurrency(test_redis):
 
 
 def test_fails_closed_when_redis_is_down():
-    dead = redis.Redis(host="localhost", port=1, socket_connect_timeout=0.2)
-    decision = SlidingWindowRateLimiter(dead, "rl:x", 5, 1).acquire("m")
+    # Port 1 has nothing listening: simulates Redis being unreachable.
+    dead = redis.Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.2)
+    # Capture the expected error log instead of letting it print a traceback.
+    with mock.patch("emailqueue.ratelimiter.logger") as log:
+        decision = SlidingWindowRateLimiter(dead, "rl:x", 5, 1).acquire("m")
     assert decision.allowed is False
     assert decision.retry_after_ms == FAIL_CLOSED_RETRY_MS
+    log.exception.assert_called_once()  # the outage is still reported

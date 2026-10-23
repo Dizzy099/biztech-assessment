@@ -71,6 +71,16 @@ Architecture and trade-offs: `DESIGN.md`. SIGKILL answer: `ANSWERS.md` §2.
 | `DESIGN.md` | Section 2 architecture decisions |
 | `ANSWERS.md` | Written answers for Sections 1, 2 and 3 |
 
+## Written answers and evidence
+
+- Sections 1 and 3, plus the Section 2 SIGKILL answer: [ANSWERS.md](ANSWERS.md)
+- Section 2 architecture decisions: [DESIGN.md](DESIGN.md)
+- Profiler evidence (django-silk screenshots + CLI output): [docs/](docs/)
+
 ## Optional recording
 
-TODO: Loom link (if recorded).
+Not recorded.
+
+## Note on tooling
+
+Implementation was built with AI coding assistance; design choices, written answers and verification are my own.

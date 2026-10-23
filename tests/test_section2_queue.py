@@ -13,6 +13,7 @@ from celery.contrib.testing.worker import start_worker
 
 from config.celery import app as celery_app
 from emailqueue.models import EmailJob, SendAttempt
+from emailqueue.ratelimiter import get_email_rate_limiter
 from emailqueue.services import enqueue_emails
 
 LIMIT = 50
@@ -70,6 +71,12 @@ def test_500_jobs_none_lost_limit_respected_failures_retried(worker):
                  simulate_transient_failures=1 if i % 50 == 0 else 0)  # 10 flaky jobs
         for i in range(500)
     ]
+    # Fill the current window first, so the first jobs are guaranteed to be refused
+    # and deferred. Without this, a slow machine (one solo worker below 50 sends/s)
+    # never hits the limit and the deferral path is never exercised.
+    limiter = get_email_rate_limiter()
+    for i in range(LIMIT):
+        assert limiter.acquire(member=f"prefill-{i}").allowed
     started = time.monotonic()
     enqueue_emails(jobs)
     wait_until_settled(500)
