@@ -10,6 +10,7 @@ import uuid
 
 import pytest
 from celery.contrib.testing.worker import start_worker
+from django.db import transaction
 
 from config.celery import app as celery_app
 from emailqueue.models import EmailJob, SendAttempt
@@ -71,14 +72,21 @@ def test_500_jobs_none_lost_limit_respected_failures_retried(worker):
                  simulate_transient_failures=1 if i % 50 == 0 else 0)  # 10 flaky jobs
         for i in range(500)
     ]
-    # Fill the current window first, so the first jobs are guaranteed to be refused
-    # and deferred. Without this, a slow machine (one solo worker below 50 sends/s)
-    # never hits the limit and the deferral path is never exercised.
-    limiter = get_email_rate_limiter()
-    for i in range(LIMIT):
-        assert limiter.acquire(member=f"prefill-{i}").allowed
+    # Fill the current window at the exact moment the tasks are published, so the
+    # first jobs are guaranteed to be refused and deferred. Registered as an
+    # on_commit callback *before* enqueue_emails(), so it runs immediately before
+    # the publish callback - however long saving the 500 rows takes on a slow disk.
+    # Without this, a slow machine (one solo worker below 50 sends/s) never hits
+    # the limit and the deferral path is never exercised.
+    def fill_window():
+        limiter = get_email_rate_limiter()
+        for i in range(LIMIT):
+            assert limiter.acquire(member=f"prefill-{i}").allowed
+
     started = time.monotonic()
-    enqueue_emails(jobs)
+    with transaction.atomic():
+        transaction.on_commit(fill_window)
+        enqueue_emails(jobs)
     wait_until_settled(500)
     elapsed = time.monotonic() - started
 
