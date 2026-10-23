@@ -50,9 +50,11 @@ celery -A config worker -l info --pool=solo      # Windows (prefork is not suppo
 celery -A config worker -l info                  # macOS/Linux
 
 # Terminal 2 — burst of jobs, then watch them drain
+python manage.py reset_demo                                          # optional: start from zero
 python manage.py enqueue_emails --count 500 --fail-every 50 --dead 1
 python manage.py queue_status
 docker compose exec redis redis-cli ZCARD ratelimit:email-provider   # slots used in the current window
+python manage.py rate_check                                          # busiest 60 s window across the run (<= 200)
 python manage.py redrive_dead_letters                                # re-queue dead-lettered jobs
 ```
 
